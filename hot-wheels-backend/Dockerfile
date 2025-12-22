@@ -6,7 +6,7 @@
 # ---------------------------------------------
 # Stage 1: Builder - Install dependencies
 # ---------------------------------------------
-FROM python:3.11-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 # Set build-time arguments
 ARG BUILDTIME_DEPS="gcc libpq-dev"
@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # ---------------------------------------------
 # Stage 2: Production - Final image
 # ---------------------------------------------
-FROM python:3.11-slim-bookworm AS production
+FROM python:3.14-slim-bookworm AS production
 
 # Labels for image metadata
 LABEL maintainer="HotWheels Team <admin@hotwheels.com>"
