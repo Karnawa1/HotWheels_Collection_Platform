@@ -1,0 +1,390 @@
+# ===========================================
+# Hot Wheels Platform - Unified CD Pipeline
+# Full-Stack Deployment: Backend + Frontend
+# ===========================================
+
+name: CD Pipeline
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    branches: [main]
+    types:
+      - completed
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      version:
+        description: 'Version/Tag to deploy (leave empty for latest)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # -----------------------------------------
+  # Prepare Deployment
+  # -----------------------------------------
+  prepare:
+    name: 📋 Prepare Deployment
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      environment: ${{ steps.env.outputs.environment }}
+      api_image_tag: ${{ steps.tags.outputs.api_tag }}
+      frontend_image_tag: ${{ steps.tags.outputs.frontend_tag }}
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🏷️ Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v1.0.0-$(git rev-parse --short HEAD)")
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: 🌍 Determine environment
+        id: env
+        run: |
+          if [ -n "${{ github.event.inputs.environment }}" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+          else
+            ENV="staging"
+          fi
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "Environment: $ENV"
+
+      - name: 🐳 Determine image tags
+        id: tags
+        run: |
+          API_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api:latest"
+          FRONTEND_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest"
+          echo "api_tag=$API_TAG" >> $GITHUB_OUTPUT
+          echo "frontend_tag=$FRONTEND_TAG" >> $GITHUB_OUTPUT
+          echo "API image tag: $API_TAG"
+          echo "Frontend image tag: $FRONTEND_TAG"
+
+  # -----------------------------------------
+  # Deploy to Staging
+  # -----------------------------------------
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.hotwheels-platform.example.com
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📋 Create deployment artifacts
+        run: |
+          mkdir -p deploy-artifacts
+
+          # Create docker-compose for staging
+          cat > deploy-artifacts/docker-compose.staging.yml << 'EOF'
+          version: '3.8'
+
+          services:
+            api:
+              image: ${{ needs.prepare.outputs.api_image_tag }}
+              container_name: hotwheels_api_staging
+              restart: unless-stopped
+              ports:
+                - "5000:5000"
+              environment:
+                FLASK_ENV: staging
+                DEBUG: "False"
+              env_file:
+                - .env.staging
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+              networks:
+                - hotwheels_network
+
+            frontend:
+              image: ${{ needs.prepare.outputs.frontend_image_tag }}
+              container_name: hotwheels_frontend_staging
+              restart: unless-stopped
+              ports:
+                - "3000:3000"
+              environment:
+                NODE_ENV: production
+                NEXT_PUBLIC_API_URL: http://api:5000
+              depends_on:
+                - api
+              healthcheck:
+                test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+              networks:
+                - hotwheels_network
+
+          networks:
+            hotwheels_network:
+              driver: bridge
+          EOF
+
+          # Create deployment script
+          cat > deploy-artifacts/deploy.sh << 'EOF'
+          #!/bin/bash
+          set -e
+
+          echo "🚀 Deploying Hot Wheels Platform to Staging..."
+          echo "Version: ${{ needs.prepare.outputs.version }}"
+          echo "API Image: ${{ needs.prepare.outputs.api_image_tag }}"
+          echo "Frontend Image: ${{ needs.prepare.outputs.frontend_image_tag }}"
+
+          # Pull latest images
+          docker pull ${{ needs.prepare.outputs.api_image_tag }}
+          docker pull ${{ needs.prepare.outputs.frontend_image_tag }}
+
+          # Stop existing containers
+          docker-compose -f docker-compose.staging.yml down --remove-orphans || true
+
+          # Start new containers
+          docker-compose -f docker-compose.staging.yml up -d
+
+          # Wait for services to be healthy
+          echo "⏳ Waiting for services to be healthy..."
+          sleep 15
+
+          # Verify deployment
+          API_HEALTHY=false
+          FRONTEND_HEALTHY=false
+
+          if curl -sf http://localhost:5000/health > /dev/null; then
+            echo "✅ API is healthy!"
+            API_HEALTHY=true
+          else
+            echo "❌ API health check failed!"
+          fi
+
+          if curl -sf http://localhost:3000 > /dev/null; then
+            echo "✅ Frontend is healthy!"
+            FRONTEND_HEALTHY=true
+          else
+            echo "❌ Frontend health check failed!"
+          fi
+
+          if [ "$API_HEALTHY" = true ] && [ "$FRONTEND_HEALTHY" = true ]; then
+            echo "✅ Deployment successful!"
+          else
+            echo "❌ Deployment verification failed!"
+            docker-compose -f docker-compose.staging.yml logs
+            exit 1
+          fi
+          EOF
+          chmod +x deploy-artifacts/deploy.sh
+
+      - name: 📦 Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-deployment-${{ github.sha }}
+          path: deploy-artifacts/
+          retention-days: 7
+
+      - name: 📋 Deployment Summary
+        run: |
+          echo "## 🚀 Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | staging |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ needs.prepare.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| API Image | ${{ needs.prepare.outputs.api_image_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Image | ${{ needs.prepare.outputs.frontend_image_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+
+  # -----------------------------------------
+  # Deploy to Production
+  # -----------------------------------------
+  deploy-production:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.environment == 'production'
+    environment:
+      name: production
+      url: https://hotwheels-platform.example.com
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📋 Create deployment artifacts
+        run: |
+          mkdir -p deploy-artifacts
+
+          # Create docker-compose for production
+          cat > deploy-artifacts/docker-compose.production.yml << 'EOF'
+          version: '3.8'
+
+          services:
+            api:
+              image: ${{ needs.prepare.outputs.api_image_tag }}
+              container_name: hotwheels_api_production
+              restart: always
+              environment:
+                FLASK_ENV: production
+                DEBUG: "False"
+              env_file:
+                - .env.production
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+              deploy:
+                resources:
+                  limits:
+                    memory: 1G
+                    cpus: '1.0'
+              networks:
+                - hotwheels_network
+
+            frontend:
+              image: ${{ needs.prepare.outputs.frontend_image_tag }}
+              container_name: hotwheels_frontend_production
+              restart: always
+              environment:
+                NODE_ENV: production
+                NEXT_PUBLIC_API_URL: /api
+              depends_on:
+                - api
+              healthcheck:
+                test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+              deploy:
+                resources:
+                  limits:
+                    memory: 512M
+                    cpus: '0.5'
+              networks:
+                - hotwheels_network
+
+            nginx:
+              image: nginx:alpine
+              container_name: hotwheels_nginx_production
+              restart: always
+              ports:
+                - "80:80"
+                - "443:443"
+              volumes:
+                - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+                - ./nginx/ssl:/etc/nginx/ssl:ro
+              depends_on:
+                - api
+                - frontend
+              networks:
+                - hotwheels_network
+
+          networks:
+            hotwheels_network:
+              driver: bridge
+          EOF
+
+          # Create deployment script
+          cat > deploy-artifacts/deploy.sh << 'EOF'
+          #!/bin/bash
+          set -e
+
+          echo "🚀 Deploying Hot Wheels Platform to Production..."
+          echo "Version: ${{ needs.prepare.outputs.version }}"
+
+          # Pull latest images
+          docker pull ${{ needs.prepare.outputs.api_image_tag }}
+          docker pull ${{ needs.prepare.outputs.frontend_image_tag }}
+
+          # Rolling update
+          docker-compose -f docker-compose.production.yml up -d --no-deps --build api
+          sleep 10
+          docker-compose -f docker-compose.production.yml up -d --no-deps --build frontend
+
+          echo "✅ Production deployment completed!"
+          EOF
+          chmod +x deploy-artifacts/deploy.sh
+
+      - name: 📦 Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deployment-${{ github.sha }}
+          path: deploy-artifacts/
+          retention-days: 30
+
+      - name: 📋 Deployment Summary
+        run: |
+          echo "## 🚀 Production Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | production |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ needs.prepare.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| API Image | ${{ needs.prepare.outputs.api_image_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Image | ${{ needs.prepare.outputs.frontend_image_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+
+  # -----------------------------------------
+  # Notify on Completion
+  # -----------------------------------------
+  notify:
+    name: 📢 Notify
+    runs-on: ubuntu-latest
+    needs: [prepare, deploy-staging, deploy-production]
+    if: always()
+
+    steps:
+      - name: 📋 Deployment Notification
+        run: |
+          echo "# 🎉 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ needs.prepare.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.prepare.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Staging | ${{ needs.deploy-staging.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Production | ${{ needs.deploy-production.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY

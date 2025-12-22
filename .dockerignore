@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+
+# Dependencies
+hot-wheels-backend/.venv
+hot-wheels-backend/venv
+hot-wheels-backend/__pycache__
+hot-wheels-backend/**/__pycache__
+hot-wheels-backend/*.pyc
+hot-wheels-frontend/node_modules
+hot-wheels-frontend/.pnpm-store
+
+# Build artifacts
+hot-wheels-frontend/.next
+hot-wheels-frontend/out
+hot-wheels-backend/htmlcov
+hot-wheels-backend/coverage.xml
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+hot-wheels-backend/logs/*
+!hot-wheels-backend/logs/.gitkeep
+
+# Uploads
+hot-wheels-backend/uploads/*
+!hot-wheels-backend/uploads/.gitkeep
+
+# Tests
+hot-wheels-frontend/playwright-report
+hot-wheels-frontend/test-results
+hot-wheels-frontend/coverage
+
+# Secrets
+.env
+.env.local
+.env.*.local
+secrets/
+
+# Documentation (optional, uncomment if you want to exclude)
+# docs/
+# README.md
+
+# Docker
+docker-compose.override.yml

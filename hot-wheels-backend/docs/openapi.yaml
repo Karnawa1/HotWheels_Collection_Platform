@@ -1,0 +1,2612 @@
+openapi: 3.1.0
+info:
+  title: Hot Wheels Collector API
+  version: 1.0.0
+  description: |
+    # Hot Wheels Collector Platform API
+
+    A comprehensive REST API for Hot Wheels collectors to manage their collections,
+    trade with other collectors, and explore the complete Hot Wheels catalog.
+
+    ## Features
+    - **Authentication**: JWT-based secure authentication system
+    - **Catalog**: Browse 50+ years of Hot Wheels models
+    - **Collections**: Track and manage personal collections
+    - **Marketplace**: Buy, sell, and trade with other collectors
+    - **Reviews**: Rate and review transactions
+
+    ## Getting Started
+    1. Register a new account via `/api/v1/auth/register`
+    2. Login to receive JWT tokens via `/api/v1/auth/login`
+    3. Include the access token in the `Authorization` header
+    4. Start exploring the catalog and managing your collection!
+
+    ## Rate Limits
+    - Anonymous users: 100 requests/minute
+    - Authenticated users: 500 requests/minute
+    - Rate limit headers included in all responses
+
+    ## Support
+    For API support, please contact the development team.
+
+  contact:
+    name: API Support
+    email: support@hotwheels-collector.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Development server
+  - url: https://api.hotwheels-collector.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication and account management
+  - name: Catalog
+    description: Browse Hot Wheels models, castings, and series
+  - name: Collections
+    description: Manage personal collections and wishlists
+  - name: Marketplace
+    description: Listings, transactions, and reviews
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token obtained from `/api/v1/auth/login`.
+        Include in Authorization header: `Bearer <token>`
+
+  schemas:
+    # ==================== Common Schemas ====================
+    Error:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Invalid request parameters"
+            code:
+              type: string
+              example: "VALIDATION_ERROR"
+
+    SuccessResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        message:
+          type: string
+          nullable: true
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 150
+        total_pages:
+          type: integer
+          example: 8
+        has_next:
+          type: boolean
+          example: true
+        has_prev:
+          type: boolean
+          example: false
+
+    # ==================== User Schemas ====================
+    User:
+      type: object
+      properties:
+        user_id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: "hotwheels_fan"
+        full_name:
+          type: string
+          nullable: true
+          example: "John Smith"
+        country:
+          type: string
+          nullable: true
+          example: "United States"
+        city:
+          type: string
+          nullable: true
+          example: "Los Angeles"
+        profile_image_url:
+          type: string
+          nullable: true
+          example: "https://example.com/avatar.jpg"
+        bio:
+          type: string
+          nullable: true
+          example: "Collecting Hot Wheels since 1985"
+        is_verified:
+          type: boolean
+          example: false
+        is_active:
+          type: boolean
+          example: true
+        role:
+          type: string
+          enum: [collector, trader, admin, moderator]
+          example: "collector"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        last_login:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2024-12-17T08:00:00Z"
+
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: "hotwheels_fan"
+        email:
+          type: string
+          format: email
+          example: "collector@example.com"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          format: password
+          example: "SecureP@ss123"
+        full_name:
+          type: string
+          nullable: true
+          example: "John Smith"
+        country:
+          type: string
+          nullable: true
+          example: "United States"
+        city:
+          type: string
+          nullable: true
+          example: "Los Angeles"
+        bio:
+          type: string
+          nullable: true
+          example: "Passionate Hot Wheels collector"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "collector@example.com"
+        password:
+          type: string
+          format: password
+          example: "SecureP@ss123"
+
+    AuthTokens:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          example: "bearer"
+        expires_in:
+          type: integer
+          example: 86400
+          description: Token expiration time in seconds
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          nullable: true
+          example: "John Smith Jr."
+        country:
+          type: string
+          nullable: true
+          example: "Canada"
+        city:
+          type: string
+          nullable: true
+          example: "Toronto"
+        bio:
+          type: string
+          nullable: true
+          example: "Updated bio"
+        profile_image_url:
+          type: string
+          nullable: true
+          example: "https://example.com/new-avatar.jpg"
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - old_password
+        - new_password
+      properties:
+        old_password:
+          type: string
+          format: password
+          example: "OldP@ss123"
+        new_password:
+          type: string
+          minLength: 8
+          format: password
+          example: "NewSecureP@ss456"
+
+    # ==================== Catalog Schemas ====================
+    Manufacturer:
+      type: object
+      properties:
+        manufacturer_id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "Mattel"
+        country:
+          type: string
+          nullable: true
+          example: "United States"
+        founded_year:
+          type: integer
+          nullable: true
+          example: 1945
+        created_at:
+          type: string
+          format: date-time
+
+    Casting:
+      type: object
+      properties:
+        casting_id:
+          type: integer
+          example: 1
+        casting_name:
+          type: string
+          example: "'67 Camaro"
+        first_release_year:
+          type: integer
+          example: 1968
+        manufacturer_id:
+          type: integer
+          nullable: true
+          example: 1
+        scale:
+          type: string
+          example: "1:64"
+        designer:
+          type: string
+          nullable: true
+          example: "Harry Bradley"
+        based_on_real_car:
+          type: boolean
+          example: true
+        real_car_model:
+          type: string
+          nullable: true
+          example: "1967 Chevrolet Camaro"
+        created_at:
+          type: string
+          format: date-time
+
+    Series:
+      type: object
+      properties:
+        series_id:
+          type: integer
+          example: 1
+        series_name:
+          type: string
+          example: "Mainline 2024"
+        release_year:
+          type: integer
+          example: 2024
+        manufacturer_id:
+          type: integer
+          nullable: true
+        description:
+          type: string
+          nullable: true
+          example: "Standard mainline series"
+        is_limited_edition:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+
+    CarModel:
+      type: object
+      properties:
+        model_id:
+          type: integer
+          example: 1
+        casting_id:
+          type: integer
+          example: 1
+        series_id:
+          type: integer
+          nullable: true
+          example: 1
+        release_year:
+          type: integer
+          example: 2024
+        color:
+          type: string
+          example: "Spectraflame Red"
+        tampo_design:
+          type: string
+          nullable: true
+          example: "Racing stripes with #7"
+        wheel_type:
+          type: string
+          nullable: true
+          example: "5-Spoke"
+        base_color:
+          type: string
+          nullable: true
+          example: "Chrome"
+        window_color:
+          type: string
+          nullable: true
+          example: "Tinted"
+        interior_color:
+          type: string
+          nullable: true
+          example: "Black"
+        production_code:
+          type: string
+          nullable: true
+          example: "L2593"
+        sku:
+          type: string
+          nullable: true
+          example: "HCW35-N9B1"
+        rarity_level:
+          type: string
+          enum: [Common, Uncommon, Rare, Chase, Super Treasure Hunt]
+          example: "Common"
+        estimated_production_quantity:
+          type: integer
+          nullable: true
+          example: 50000
+        msrp:
+          type: number
+          format: float
+          nullable: true
+          example: 1.29
+        casting_name:
+          type: string
+          description: Included when relations are requested
+          example: "'67 Camaro"
+        series_name:
+          type: string
+          nullable: true
+          description: Included when relations are requested
+          example: "Mainline 2024"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CatalogStats:
+      type: object
+      properties:
+        total_models:
+          type: integer
+          example: 15000
+        total_castings:
+          type: integer
+          example: 2500
+        total_series:
+          type: integer
+          example: 350
+        models_by_rarity:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            Common: 12000
+            Uncommon: 2000
+            Rare: 800
+            Chase: 150
+            "Super Treasure Hunt": 50
+        models_by_year:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            "2024": 500
+            "2023": 480
+
+    # ==================== Collection Schemas ====================
+    CollectionItem:
+      type: object
+      properties:
+        collection_id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        model_id:
+          type: integer
+          example: 1
+        acquisition_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-06-15"
+        acquisition_price:
+          type: number
+          format: float
+          nullable: true
+          example: 4.99
+        condition:
+          type: string
+          enum: [Mint, Near Mint, Excellent, Good, Fair, Poor]
+          example: "Mint"
+        is_in_package:
+          type: boolean
+          example: true
+        package_condition:
+          type: string
+          enum: [Mint, Near Mint, Excellent, Good, Fair, Poor]
+          nullable: true
+          example: "Mint"
+        quantity:
+          type: integer
+          minimum: 1
+          example: 1
+        storage_location:
+          type: string
+          nullable: true
+          example: "Display Case A"
+        notes:
+          type: string
+          nullable: true
+          example: "Found at local Walmart"
+        is_for_trade:
+          type: boolean
+          example: false
+        is_for_sale:
+          type: boolean
+          example: false
+        car_model:
+          $ref: '#/components/schemas/CarModel'
+          description: Included when relations are requested
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AddToCollectionRequest:
+      type: object
+      required:
+        - model_id
+      properties:
+        model_id:
+          type: integer
+          example: 1
+        acquisition_date:
+          type: string
+          format: date
+          example: "2024-06-15"
+        acquisition_price:
+          type: number
+          format: float
+          example: 4.99
+        condition:
+          type: string
+          enum: [Mint, Near Mint, Excellent, Good, Fair, Poor]
+          default: "Mint"
+          example: "Mint"
+        is_in_package:
+          type: boolean
+          default: true
+          example: true
+        package_condition:
+          type: string
+          enum: [Mint, Near Mint, Excellent, Good, Fair, Poor]
+          example: "Mint"
+        quantity:
+          type: integer
+          minimum: 1
+          default: 1
+          example: 1
+        storage_location:
+          type: string
+          example: "Display Case A"
+        notes:
+          type: string
+          example: "Found at local Walmart"
+        is_for_trade:
+          type: boolean
+          default: false
+          example: false
+        is_for_sale:
+          type: boolean
+          default: false
+          example: false
+
+    UpdateCollectionItemRequest:
+      type: object
+      properties:
+        acquisition_price:
+          type: number
+          format: float
+          example: 5.99
+        condition:
+          type: string
+          enum: [Mint, Near Mint, Excellent, Good, Fair, Poor]
+          example: "Near Mint"
+        is_in_package:
+          type: boolean
+          example: false
+        package_condition:
+          type: string
+          enum: [Mint, Near Mint, Excellent, Good, Fair, Poor]
+          nullable: true
+        quantity:
+          type: integer
+          minimum: 1
+        storage_location:
+          type: string
+        notes:
+          type: string
+        is_for_trade:
+          type: boolean
+        is_for_sale:
+          type: boolean
+
+    WishlistItem:
+      type: object
+      properties:
+        wishlist_id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        model_id:
+          type: integer
+          example: 1
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 3
+        max_price_willing:
+          type: number
+          format: float
+          nullable: true
+          example: 25.00
+        notes:
+          type: string
+          nullable: true
+          example: "Looking for loose or carded"
+        car_model:
+          $ref: '#/components/schemas/CarModel'
+          description: Included when relations are requested
+        created_at:
+          type: string
+          format: date-time
+
+    AddToWishlistRequest:
+      type: object
+      required:
+        - model_id
+      properties:
+        model_id:
+          type: integer
+          example: 1
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 3
+        max_price_willing:
+          type: number
+          format: float
+          example: 25.00
+        notes:
+          type: string
+          example: "Looking for loose or carded"
+
+    CollectionStats:
+      type: object
+      properties:
+        total_items:
+          type: integer
+          example: 150
+        total_value:
+          type: number
+          format: float
+          example: 750.50
+        items_for_sale:
+          type: integer
+          example: 10
+        items_for_trade:
+          type: integer
+          example: 25
+        by_condition:
+          type: object
+          additionalProperties:
+            type: integer
+        by_rarity:
+          type: object
+          additionalProperties:
+            type: integer
+
+    # ==================== Marketplace Schemas ====================
+    Listing:
+      type: object
+      properties:
+        listing_id:
+          type: integer
+          example: 1
+        seller_id:
+          type: integer
+          example: 1
+        collection_item_id:
+          type: integer
+          nullable: true
+          example: 5
+        model_id:
+          type: integer
+          example: 1
+        listing_type:
+          type: string
+          enum: [sale, trade, auction]
+          example: "sale"
+        price:
+          type: number
+          format: float
+          nullable: true
+          example: 15.99
+          description: Required for sale listings, nullable for trades
+        condition:
+          type: string
+          enum: [Mint, Near Mint, Excellent, Good, Fair, Poor]
+          example: "Mint"
+        description:
+          type: string
+          nullable: true
+          example: "Pristine condition, never opened"
+        status:
+          type: string
+          enum: [active, sold, cancelled, expired]
+          example: "active"
+        views_count:
+          type: integer
+          example: 42
+        seller:
+          type: object
+          properties:
+            username:
+              type: string
+              example: "hotwheels_fan"
+            is_verified:
+              type: boolean
+              example: false
+          description: Included when relations are requested
+        car_model:
+          $ref: '#/components/schemas/CarModel'
+          description: Included when relations are requested
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        sold_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateListingRequest:
+      type: object
+      required:
+        - model_id
+        - listing_type
+        - condition
+      properties:
+        model_id:
+          type: integer
+          example: 1
+        listing_type:
+          type: string
+          enum: [sale, trade, auction]
+          example: "sale"
+        condition:
+          type: string
+          enum: [Mint, Near Mint, Excellent, Good, Fair, Poor]
+          example: "Mint"
+        price:
+          type: number
+          format: float
+          example: 15.99
+          description: Required for sale listings
+        description:
+          type: string
+          example: "Pristine condition, never opened"
+        collection_item_id:
+          type: integer
+          example: 5
+          description: Link to your collection item
+        expires_at:
+          type: string
+          format: date-time
+          example: "2024-12-31T23:59:59Z"
+
+    UpdateListingRequest:
+      type: object
+      properties:
+        price:
+          type: number
+          format: float
+          example: 14.99
+        description:
+          type: string
+          example: "Updated description"
+        condition:
+          type: string
+          enum: [Mint, Near Mint, Excellent, Good, Fair, Poor]
+
+    Transaction:
+      type: object
+      properties:
+        transaction_id:
+          type: integer
+          example: 1
+        listing_id:
+          type: integer
+          example: 1
+        buyer_id:
+          type: integer
+          example: 2
+        seller_id:
+          type: integer
+          example: 1
+        transaction_type:
+          type: string
+          enum: [purchase, trade]
+          example: "purchase"
+        amount:
+          type: number
+          format: float
+          example: 15.99
+        payment_method:
+          type: string
+          nullable: true
+          example: "PayPal"
+        payment_status:
+          type: string
+          enum: [pending, completed, failed, refunded]
+          example: "pending"
+        shipping_status:
+          type: string
+          enum: [not_shipped, shipped, in_transit, delivered]
+          example: "not_shipped"
+        tracking_number:
+          type: string
+          nullable: true
+          example: "1Z999AA10123456784"
+        buyer_username:
+          type: string
+          description: Included when relations are requested
+          example: "buyer123"
+        seller_username:
+          type: string
+          description: Included when relations are requested
+          example: "seller456"
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateTransactionRequest:
+      type: object
+      required:
+        - listing_id
+      properties:
+        listing_id:
+          type: integer
+          example: 1
+        payment_method:
+          type: string
+          example: "PayPal"
+
+    Review:
+      type: object
+      properties:
+        review_id:
+          type: integer
+          example: 1
+        transaction_id:
+          type: integer
+          example: 1
+        reviewer_id:
+          type: integer
+          example: 2
+        reviewee_id:
+          type: integer
+          example: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        comment:
+          type: string
+          nullable: true
+          example: "Great seller, fast shipping!"
+        reviewer_username:
+          type: string
+          description: Included when relations are requested
+          example: "buyer123"
+        reviewee_username:
+          type: string
+          description: Included when relations are requested
+          example: "seller456"
+        created_at:
+          type: string
+          format: date-time
+
+    CreateReviewRequest:
+      type: object
+      required:
+        - transaction_id
+        - reviewee_id
+        - rating
+      properties:
+        transaction_id:
+          type: integer
+          example: 1
+        reviewee_id:
+          type: integer
+          example: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        comment:
+          type: string
+          example: "Great seller, fast shipping!"
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              message: "Missing required fields: email, password"
+
+    Unauthorized:
+      description: Unauthorized - authentication required or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              message: "Authentication required"
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              message: "Access forbidden"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              message: "Resource not found"
+
+    Conflict:
+      description: Conflict - resource already exists or invalid state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              message: "Email already registered"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              message: "An unexpected error occurred"
+
+paths:
+  # ==================== Health Check ====================
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the API
+      tags:
+        - System
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  service:
+                    type: string
+                    example: "Hot Wheels API"
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  # ==================== Authentication ====================
+  /api/v1/auth/register:
+    post:
+      summary: Register a new user
+      description: |
+        Creates a new user account with the provided credentials.
+
+        **Password Requirements:**
+        - Minimum 8 characters
+        - Maximum 128 characters
+
+        **Username Requirements:**
+        - 3-50 characters
+        - Must be unique
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              basic:
+                summary: Basic registration
+                value:
+                  username: "hotwheels_fan"
+                  email: "collector@example.com"
+                  password: "SecureP@ss123"
+              full:
+                summary: Full registration with all fields
+                value:
+                  username: "hotwheels_fan"
+                  email: "collector@example.com"
+                  password: "SecureP@ss123"
+                  full_name: "John Smith"
+                  country: "United States"
+                  city: "Los Angeles"
+                  bio: "Collecting Hot Wheels since 1985"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                  message:
+                    type: string
+                    example: "User registered successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/auth/login:
+    post:
+      summary: User login
+      description: |
+        Authenticates a user and returns JWT access and refresh tokens.
+
+        **Token Usage:**
+        - Access token expires in 24 hours
+        - Refresh token expires in 30 days
+        - Include access token in `Authorization: Bearer <token>` header
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "collector@example.com"
+              password: "SecureP@ss123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/AuthTokens'
+                  message:
+                    type: string
+                    example: "Login successful"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/logout:
+    post:
+      summary: User logout
+      description: Logs out the current user and invalidates the session
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/me:
+    get:
+      summary: Get current user profile
+      description: Returns the profile of the currently authenticated user
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      summary: Update user profile
+      description: Updates the profile of the currently authenticated user
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                  message:
+                    type: string
+                    example: "Profile updated successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/change-password:
+    post:
+      summary: Change password
+      description: Changes the password for the currently authenticated user
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Password changed successfully. Please login again."
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/refresh:
+    post:
+      summary: Refresh access token
+      description: |
+        Returns a new access token using the refresh token.
+
+        Include the refresh token in the Authorization header.
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      access_token:
+                        type: string
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  message:
+                    type: string
+                    example: "Token refreshed successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== Catalog ====================
+  /api/v1/catalog/models:
+    get:
+      summary: Search car models
+      description: |
+        Search and filter car models with pagination.
+
+        **Filtering:**
+        - Search by casting name with `q` parameter
+        - Filter by release year range
+        - Filter by rarity level
+        - Filter by color
+        - Filter by series name
+      tags:
+        - Catalog
+      parameters:
+        - name: q
+          in: query
+          description: Search query (matches casting name)
+          schema:
+            type: string
+          example: "Camaro"
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          description: Items per page (max 100)
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: year_min
+          in: query
+          description: Minimum release year
+          schema:
+            type: integer
+            minimum: 1968
+          example: 2020
+        - name: year_max
+          in: query
+          description: Maximum release year
+          schema:
+            type: integer
+          example: 2024
+        - name: rarity
+          in: query
+          description: Rarity level filter
+          schema:
+            type: string
+            enum: [Common, Uncommon, Rare, Chase, Super Treasure Hunt]
+        - name: color
+          in: query
+          description: Color filter
+          schema:
+            type: string
+          example: "Red"
+        - name: series
+          in: query
+          description: Series name filter
+          schema:
+            type: string
+          example: "Mainline"
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      models:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CarModel'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+
+  /api/v1/catalog/models/{model_id}:
+    get:
+      summary: Get a specific car model
+      description: Returns detailed information about a specific car model
+      tags:
+        - Catalog
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          description: Car model ID
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Model details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      model:
+                        $ref: '#/components/schemas/CarModel'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/catalog/models/rare:
+    get:
+      summary: Get rare and special models
+      description: Returns rare models (Rare, Chase, Super Treasure Hunt)
+      tags:
+        - Catalog
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Rare models list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      models:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CarModel'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+
+  /api/v1/catalog/models/recent:
+    get:
+      summary: Get recently released models
+      description: Returns models released in the current or specified year
+      tags:
+        - Catalog
+      parameters:
+        - name: year
+          in: query
+          description: Release year (defaults to current year)
+          schema:
+            type: integer
+          example: 2024
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Recent models list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      models:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CarModel'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+
+  /api/v1/catalog/models/popular:
+    get:
+      summary: Get most popular models
+      description: Returns models most commonly found in user collections
+      tags:
+        - Catalog
+      parameters:
+        - name: limit
+          in: query
+          description: Number of results (max 50)
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+      responses:
+        '200':
+          description: Popular models list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      models:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CarModel'
+
+  /api/v1/catalog/castings:
+    get:
+      summary: Get all castings
+      description: Returns all castings with pagination
+      tags:
+        - Catalog
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Castings list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      castings:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Casting'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+
+  /api/v1/catalog/castings/search:
+    get:
+      summary: Search castings
+      description: Search castings by name
+      tags:
+        - Catalog
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+          example: "Mustang"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      castings:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Casting'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/catalog/castings/{casting_id}:
+    get:
+      summary: Get a specific casting
+      description: Returns detailed information about a specific casting
+      tags:
+        - Catalog
+      parameters:
+        - name: casting_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Casting details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      casting:
+                        $ref: '#/components/schemas/Casting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/catalog/castings/{casting_id}/models:
+    get:
+      summary: Get models for a casting
+      description: Returns all car model variants for a specific casting
+      tags:
+        - Catalog
+      parameters:
+        - name: casting_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Models list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      models:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CarModel'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/catalog/series:
+    get:
+      summary: Get all series
+      description: Returns all series with optional year filter
+      tags:
+        - Catalog
+      parameters:
+        - name: year
+          in: query
+          description: Filter by release year
+          schema:
+            type: integer
+          example: 2024
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Series list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      series:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Series'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+
+  /api/v1/catalog/series/{series_id}:
+    get:
+      summary: Get a specific series
+      description: Returns detailed information about a specific series
+      tags:
+        - Catalog
+      parameters:
+        - name: series_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Series details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      series:
+                        $ref: '#/components/schemas/Series'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/catalog/series/{series_id}/models:
+    get:
+      summary: Get models in a series
+      description: Returns all car models in a specific series
+      tags:
+        - Catalog
+      parameters:
+        - name: series_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Models list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      models:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CarModel'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/catalog/manufacturers:
+    get:
+      summary: Get all manufacturers
+      description: Returns all manufacturers (e.g., Mattel, Matchbox)
+      tags:
+        - Catalog
+      responses:
+        '200':
+          description: Manufacturers list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      manufacturers:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Manufacturer'
+
+  /api/v1/catalog/stats:
+    get:
+      summary: Get catalog statistics
+      description: Returns overall catalog statistics
+      tags:
+        - Catalog
+      responses:
+        '200':
+          description: Catalog statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      stats:
+                        $ref: '#/components/schemas/CatalogStats'
+
+  # ==================== Collections ====================
+  /api/v1/collections:
+    get:
+      summary: Get user's collection
+      description: Returns the authenticated user's collection with optional filters
+      tags:
+        - Collections
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: for_sale
+          in: query
+          description: Filter items marked for sale
+          schema:
+            type: boolean
+        - name: for_trade
+          in: query
+          description: Filter items marked for trade
+          schema:
+            type: boolean
+        - name: condition
+          in: query
+          description: Filter by condition
+          schema:
+            type: string
+            enum: [Mint, Near Mint, Excellent, Good, Fair, Poor]
+      responses:
+        '200':
+          description: Collection items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CollectionItem'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Add to collection
+      description: Adds a car model to the user's collection
+      tags:
+        - Collections
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddToCollectionRequest'
+            examples:
+              minimal:
+                summary: Minimal - just model ID
+                value:
+                  model_id: 1
+              full:
+                summary: Full details
+                value:
+                  model_id: 1
+                  acquisition_date: "2024-06-15"
+                  acquisition_price: 4.99
+                  condition: "Mint"
+                  is_in_package: true
+                  package_condition: "Mint"
+                  quantity: 1
+                  storage_location: "Display Case A"
+                  notes: "Found at local Walmart"
+                  is_for_trade: false
+                  is_for_sale: false
+      responses:
+        '201':
+          description: Added to collection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      collection_item:
+                        $ref: '#/components/schemas/CollectionItem'
+                  message:
+                    type: string
+                    example: "Added to collection successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/collections/{collection_id}:
+    put:
+      summary: Update collection item
+      description: Updates a specific item in the user's collection
+      tags:
+        - Collections
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCollectionItemRequest'
+      responses:
+        '200':
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      collection_item:
+                        $ref: '#/components/schemas/CollectionItem'
+                  message:
+                    type: string
+                    example: "Collection item updated successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Remove from collection
+      description: Removes an item from the user's collection
+      tags:
+        - Collections
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Item removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Item removed from collection"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/collections/stats:
+    get:
+      summary: Get collection statistics
+      description: Returns statistics about the user's collection
+      tags:
+        - Collections
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Collection statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      stats:
+                        $ref: '#/components/schemas/CollectionStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/collections/wishlist:
+    get:
+      summary: Get wishlist
+      description: Returns the user's wishlist
+      tags:
+        - Collections
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Wishlist items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/WishlistItem'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Add to wishlist
+      description: Adds a car model to the user's wishlist
+      tags:
+        - Collections
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddToWishlistRequest'
+      responses:
+        '201':
+          description: Added to wishlist
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      wishlist_item:
+                        $ref: '#/components/schemas/WishlistItem'
+                  message:
+                    type: string
+                    example: "Added to wishlist successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/collections/wishlist/{wishlist_id}:
+    delete:
+      summary: Remove from wishlist
+      description: Removes an item from the user's wishlist
+      tags:
+        - Collections
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: wishlist_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Item removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Item removed from wishlist"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== Marketplace ====================
+  /api/v1/marketplace/listings:
+    get:
+      summary: Get marketplace listings
+      description: |
+        Returns active marketplace listings with optional filters.
+
+        **Filtering Options:**
+        - By car model ID
+        - By listing type (sale/trade/auction)
+        - By seller
+        - By price range
+      tags:
+        - Marketplace
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: model_id
+          in: query
+          description: Filter by car model
+          schema:
+            type: integer
+        - name: listing_type
+          in: query
+          description: Filter by listing type
+          schema:
+            type: string
+            enum: [sale, trade, auction]
+        - name: seller_id
+          in: query
+          description: Filter by seller
+          schema:
+            type: integer
+        - name: price_min
+          in: query
+          description: Minimum price
+          schema:
+            type: number
+            format: float
+        - name: price_max
+          in: query
+          description: Maximum price
+          schema:
+            type: number
+            format: float
+      responses:
+        '200':
+          description: Listings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      listings:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Listing'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+    post:
+      summary: Create a listing
+      description: Creates a new marketplace listing
+      tags:
+        - Marketplace
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateListingRequest'
+            examples:
+              sale:
+                summary: Sale listing
+                value:
+                  model_id: 1
+                  listing_type: "sale"
+                  condition: "Mint"
+                  price: 15.99
+                  description: "Pristine condition, never opened"
+              trade:
+                summary: Trade listing
+                value:
+                  model_id: 1
+                  listing_type: "trade"
+                  condition: "Near Mint"
+                  description: "Looking to trade for Chase variants"
+      responses:
+        '201':
+          description: Listing created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      listing:
+                        $ref: '#/components/schemas/Listing'
+                  message:
+                    type: string
+                    example: "Listing created successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/marketplace/listings/{listing_id}:
+    get:
+      summary: Get a listing
+      description: Returns detailed information about a specific listing
+      tags:
+        - Marketplace
+      parameters:
+        - name: listing_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Listing details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      listing:
+                        $ref: '#/components/schemas/Listing'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: Update a listing
+      description: Updates an existing listing (seller only)
+      tags:
+        - Marketplace
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: listing_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateListingRequest'
+      responses:
+        '200':
+          description: Listing updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      listing:
+                        $ref: '#/components/schemas/Listing'
+                  message:
+                    type: string
+                    example: "Listing updated successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/marketplace/listings/{listing_id}/cancel:
+    post:
+      summary: Cancel a listing
+      description: Cancels an active listing (seller only)
+      tags:
+        - Marketplace
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: listing_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Listing cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Listing cancelled successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/marketplace/transactions:
+    post:
+      summary: Create a transaction
+      description: |
+        Initiates a purchase or trade transaction.
+
+        **Important:** You cannot purchase from yourself.
+      tags:
+        - Marketplace
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionRequest'
+      responses:
+        '201':
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      transaction:
+                        $ref: '#/components/schemas/Transaction'
+                  message:
+                    type: string
+                    example: "Transaction completed successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/marketplace/transactions/purchases:
+    get:
+      summary: Get user's purchases
+      description: Returns the authenticated user's purchase history
+      tags:
+        - Marketplace
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Purchase history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      transactions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Transaction'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/marketplace/transactions/sales:
+    get:
+      summary: Get user's sales
+      description: Returns the authenticated user's sales history
+      tags:
+        - Marketplace
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Sales history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      transactions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Transaction'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/marketplace/reviews:
+    post:
+      summary: Create a review
+      description: |
+        Creates a review for a completed transaction.
+
+        **Rules:**
+        - Rating must be between 1 and 5
+        - Can only review once per transaction
+        - Must be a participant in the transaction
+      tags:
+        - Marketplace
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewRequest'
+      responses:
+        '201':
+          description: Review created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      review:
+                        $ref: '#/components/schemas/Review'
+                  message:
+                    type: string
+                    example: "Review submitted successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+

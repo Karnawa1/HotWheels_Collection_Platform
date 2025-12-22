@@ -1,0 +1,98 @@
+# Dependabot configuration
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  # Backend - Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/hot-wheels-backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "chore(backend)"
+    reviewers:
+      - "Karnawa1"
+
+  # Frontend - npm/pnpm dependencies
+  - package-ecosystem: "npm"
+    directory: "/hot-wheels-frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore(frontend)"
+    reviewers:
+      - "Karnawa1"
+    groups:
+      # Group minor and patch updates for React/Next.js ecosystem
+      react-next:
+        patterns:
+          - "react*"
+          - "next*"
+          - "@next/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group Radix UI components
+      radix:
+        patterns:
+          - "@radix-ui/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group testing libraries
+      testing:
+        patterns:
+          - "jest*"
+          - "@jest/*"
+          - "@testing-library/*"
+          - "playwright*"
+          - "@playwright/*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci/cd"
+    commit-message:
+      prefix: "chore(ci)"
+    reviewers:
+      - "Karnawa1"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/hot-wheels-backend"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(docker)"
+
+  - package-ecosystem: "docker"
+    directory: "/hot-wheels-frontend"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(docker)"

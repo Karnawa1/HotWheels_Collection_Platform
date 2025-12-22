@@ -1,0 +1,186 @@
+# ===========================================
+# Hot Wheels Platform - Production Override
+# ===========================================
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ===========================================
+
+services:
+  # -----------------------------------------
+  # PostgreSQL - Production Settings
+  # -----------------------------------------
+  postgres:
+    restart: always
+    environment:
+      # Ensure password is set from secrets
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    # Don't expose ports in production (internal only)
+    ports: []
+    # Stricter resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # -----------------------------------------
+  # Redis - Production Settings
+  # -----------------------------------------
+  redis:
+    restart: always
+    # Don't expose ports in production (internal only)
+    ports: []
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # -----------------------------------------
+  # MongoDB - Production Settings
+  # -----------------------------------------
+  mongodb:
+    restart: always
+    # Don't expose ports in production (internal only)
+    ports: []
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # -----------------------------------------
+  # Flask API - Production Settings
+  # -----------------------------------------
+  api:
+    image: hotwheels-api:${APP_VERSION:-1.0.0}
+    restart: always
+    environment:
+      FLASK_ENV: production
+      DEBUG: "False"
+      LOG_LEVEL: WARNING
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-4}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-2}
+    # Don't expose ports in production (nginx handles routing)
+    ports: []
+    # Production-level resources
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+      # Enable rollback on failure
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+    # Stricter healthcheck
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # -----------------------------------------
+  # Next.js Frontend - Production Settings
+  # -----------------------------------------
+  frontend:
+    image: hotwheels-frontend:${APP_VERSION:-1.0.0}
+    restart: always
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+    # Don't expose ports in production (nginx handles routing)
+    ports: []
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # -----------------------------------------
+  # Nginx - Production Reverse Proxy
+  # -----------------------------------------
+  nginx:
+    restart: always
+    profiles: []  # Enable nginx in production
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+# -----------------------------------------
+# Secrets for Production
+# -----------------------------------------
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  mongo_password:
+    file: ./secrets/mongo_password.txt

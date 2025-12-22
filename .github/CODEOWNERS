@@ -1,0 +1,16 @@
+# CODEOWNERS - Define code owners for automatic PR reviews
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything
+* @Karnawa1
+
+# Backend specific
+/hot-wheels-backend/ @Karnawa1
+
+# Frontend specific
+/hot-wheels-frontend/ @Karnawa1
+
+# Infrastructure and DevOps
+/docker/ @Karnawa1
+/.github/ @Karnawa1
+docker-compose*.yml @Karnawa1

@@ -1,0 +1,34 @@
+# ===========================================
+# Hot Wheels Platform - Development Override
+# ===========================================
+# This file is automatically loaded with docker-compose up
+# Adds development-specific configurations
+# ===========================================
+
+services:
+  # -----------------------------------------
+  # API - Development Mode
+  # -----------------------------------------
+  api:
+    build:
+      target: development
+    image: hotwheels-api:dev
+    environment:
+      FLASK_ENV: development
+      DEBUG: "True"
+      LOG_LEVEL: DEBUG
+    volumes:
+      # Mount source code for hot reload
+      - ./app:/app/app:rw
+      # Mount migrations for development
+      - ./migrations:/app/migrations:ro
+      # Mount logs
+      - ./logs:/app/logs:rw
+      # Mount uploads
+      - ./uploads:/app/uploads:rw
+    # Relax resource limits for development
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'

@@ -1,0 +1,170 @@
+# ===========================================
+# Hot Wheels Platform - PR Checks Workflow
+# Fast checks for pull requests
+# ===========================================
+
+name: PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    types: [opened, synchronize, reopened]
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  # -----------------------------------------
+  # Detect Changes
+  # -----------------------------------------
+  changes:
+    name: 🔍 Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      docker: ${{ steps.filter.outputs.docker }}
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Detect file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'hot-wheels-backend/**'
+            frontend:
+              - 'hot-wheels-frontend/**'
+            docker:
+              - 'docker-compose*.yml'
+              - 'docker/**'
+              - '.github/workflows/**'
+
+  # -----------------------------------------
+  # Backend Quick Checks
+  # -----------------------------------------
+  backend-check:
+    name: 🐍 Backend Check
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    defaults:
+      run:
+        working-directory: ./hot-wheels-backend
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 📥 Install tools
+        run: |
+          pip install flake8 black isort
+
+      - name: 🔍 Lint check
+        run: |
+          flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: 🖤 Format check
+        run: |
+          black --check app/ --line-length 120
+
+      - name: 📋 Import check
+        run: |
+          isort --check-only app/
+
+  # -----------------------------------------
+  # Frontend Quick Checks
+  # -----------------------------------------
+  frontend-check:
+    name: ⚛️ Frontend Check
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    defaults:
+      run:
+        working-directory: ./hot-wheels-frontend
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: ⬢ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: hot-wheels-frontend/pnpm-lock.yaml
+
+      - name: 📥 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🔍 Lint check
+        run: pnpm lint
+
+      - name: 💅 Format check
+        run: pnpm format:check
+
+      - name: 📝 Type check
+        run: pnpm type-check
+
+  # -----------------------------------------
+  # Docker Compose Validation
+  # -----------------------------------------
+  docker-check:
+    name: 🐳 Docker Check
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐳 Validate docker-compose files
+        run: |
+          docker-compose -f docker-compose.yml config --quiet
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+
+  # -----------------------------------------
+  # PR Summary
+  # -----------------------------------------
+  summary:
+    name: 📋 PR Summary
+    runs-on: ubuntu-latest
+    needs: [changes, backend-check, frontend-check, docker-check]
+    if: always()
+
+    steps:
+      - name: 📋 Generate Summary
+        run: |
+          echo "# 🔍 PR Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Changes Detected" >> $GITHUB_STEP_SUMMARY
+          echo "| Area | Changed |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | ${{ needs.changes.outputs.backend }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ needs.changes.outputs.frontend }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker | ${{ needs.changes.outputs.docker }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐍 Backend | ${{ needs.backend-check.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⚛️ Frontend | ${{ needs.frontend-check.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Docker | ${{ needs.docker-check.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,95 @@
+# ===========================================
+# Hot Wheels Platform - Development Override
+# ===========================================
+# This file is automatically loaded with docker-compose up
+# Adds development-specific configurations
+# ===========================================
+
+services:
+  # -----------------------------------------
+  # API - Development Mode
+  # -----------------------------------------
+  api:
+    build:
+      target: development
+    image: hotwheels-api:dev
+    environment:
+      FLASK_ENV: development
+      DEBUG: "True"
+      LOG_LEVEL: DEBUG
+    volumes:
+      # Mount source code for hot reload
+      - ./hot-wheels-backend/app:/app/app:rw
+      # Mount migrations for development
+      - ./hot-wheels-backend/migrations:/app/migrations:ro
+      # Mount logs
+      - ./hot-wheels-backend/logs:/app/logs:rw
+      # Mount uploads
+      - ./hot-wheels-backend/uploads:/app/uploads:rw
+    # Relax resource limits for development
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
+  # -----------------------------------------
+  # Frontend - Development Mode
+  # -----------------------------------------
+  frontend:
+    build:
+      target: development
+    image: hotwheels-frontend:dev
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:5000
+      WATCHPACK_POLLING: "true"
+    volumes:
+      # Mount source code for hot reload
+      - ./hot-wheels-frontend:/app:rw
+      # Prevent node_modules from being overwritten
+      - /app/node_modules
+      - /app/.next
+    # Relax resource limits for development
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+
+  # -----------------------------------------
+  # PostgreSQL - Development Settings
+  # -----------------------------------------
+  postgres:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    # More relaxed settings for development
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
+  # -----------------------------------------
+  # Redis - Development Settings
+  # -----------------------------------------
+  redis:
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # -----------------------------------------
+  # MongoDB - Development Settings
+  # -----------------------------------------
+  mongodb:
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
