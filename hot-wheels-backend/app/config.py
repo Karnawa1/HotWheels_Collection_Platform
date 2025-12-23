@@ -117,6 +117,7 @@ class TestingConfig(Config):
         'TEST_DATABASE_URL',
         'postgresql://hotwheels_admin:secure_password_123@postgres:5432/hotwheels_test_db'
     )
+    # Disable automatic migrations in tests to maintain test isolation
     AUTO_MIGRATE = False  # Don't auto-migrate in tests
 
 # Configuration dictionary
