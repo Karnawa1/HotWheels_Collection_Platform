@@ -6,7 +6,7 @@
 # ---------------------------------------------
 # Stage 1: Dependencies - Install node modules
 # ---------------------------------------------
-FROM node:20-alpine AS deps
+FROM node:25-alpine AS deps
 
 # Install libc6-compat for Alpine compatibility
 RUN apk add --no-cache libc6-compat
@@ -23,7 +23,7 @@ RUN pnpm install --frozen-lockfile
 # ---------------------------------------------
 # Stage 2: Builder - Build the application
 # ---------------------------------------------
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 
 WORKDIR /app
 
@@ -44,7 +44,7 @@ RUN pnpm build
 # ---------------------------------------------
 # Stage 3: Production - Final optimized image
 # ---------------------------------------------
-FROM node:20-alpine AS production
+FROM node:25-alpine AS production
 
 # Labels for image metadata
 LABEL maintainer="HotWheels Team <admin@hotwheels.com>"
@@ -89,7 +89,7 @@ CMD ["node", "server.js"]
 # ---------------------------------------------
 # Stage 4: Development - For local development
 # ---------------------------------------------
-FROM node:20-alpine AS development
+FROM node:25-alpine AS development
 
 WORKDIR /app
 
